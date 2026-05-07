@@ -7,9 +7,7 @@ XCODEBUILD_FLAGS := \
 	-scheme Relay \
 	-configuration Release \
 	-destination 'platform=macOS' \
-	-derivedDataPath $(DERIVED) \
-	CODE_SIGN_IDENTITY=- \
-	CODE_SIGNING_REQUIRED=NO
+	-derivedDataPath $(DERIVED)
 
 .PHONY: project build install run clean
 
