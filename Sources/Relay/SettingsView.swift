@@ -21,30 +21,16 @@ private struct ConnectionsTab: View {
         @Bindable var c = credentials
         Form {
             Section("Twilio") {
-                LabeledContent("Account SID") {
-                    TextField("AC…", text: $c.twilioAccountSID)
-                }
-                LabeledContent("Auth Token") {
-                    SecureField("auth token", text: $c.twilioAuthToken)
-                }
-                LabeledContent("From number") {
-                    TextField("+14155551234", text: $c.twilioFromNumber)
-                }
-                LabeledContent("Your phone") {
-                    TextField("+14155555678", text: $c.twilioToPhone)
-                }
+                TextField("Account SID", text: $c.twilioAccountSID, prompt: Text("AC…"))
+                SecureField("Auth Token", text: $c.twilioAuthToken)
+                TextField("From number", text: $c.twilioFromNumber, prompt: Text("+14155551234"))
+                TextField("Your phone", text: $c.twilioToPhone, prompt: Text("+14155555678"))
                 Button("Send test SMS") {}.disabled(true)
             }
             Section("Slack") {
-                LabeledContent("App-level token") {
-                    SecureField("xapp-…", text: $c.slackAppToken)
-                }
-                LabeledContent("Bot token") {
-                    SecureField("xoxb-…", text: $c.slackBotToken)
-                }
-                LabeledContent("User token") {
-                    SecureField("xoxp-…", text: $c.slackUserToken)
-                }
+                SecureField("App-level token", text: $c.slackAppToken, prompt: Text("xapp-…"))
+                SecureField("Bot token", text: $c.slackBotToken, prompt: Text("xoxb-…"))
+                SecureField("User token", text: $c.slackUserToken, prompt: Text("xoxp-…"))
                 Button("Test Slack connection") {}.disabled(true)
             }
         }
