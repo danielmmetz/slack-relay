@@ -16,6 +16,11 @@ struct SettingsView: View {
 
 private struct ConnectionsTab: View {
     @Environment(Credentials.self) private var credentials
+    @Environment(Services.self) private var services
+
+    @State private var twilioSending: Bool = false
+    @State private var twilioStatus: String = ""
+    @State private var twilioStatusOK: Bool = true
 
     var body: some View {
         @Bindable var c = credentials
@@ -25,7 +30,22 @@ private struct ConnectionsTab: View {
                 SecureField("Auth Token", text: $c.twilioAuthToken)
                 TextField("From number", text: $c.twilioFromNumber, prompt: Text("+14155551234"))
                 TextField("Your phone", text: $c.twilioToPhone, prompt: Text("+14155555678"))
-                Button("Send test SMS") {}.disabled(true)
+                HStack {
+                    Button("Send test SMS") {
+                        Task { await sendTestSMS() }
+                    }
+                    .disabled(twilioSending || !twilioReady(c))
+                    if twilioSending {
+                        ProgressView().controlSize(.small)
+                    }
+                    if !twilioStatus.isEmpty {
+                        Text(twilioStatus)
+                            .font(.caption)
+                            .foregroundStyle(twilioStatusOK ? Color.secondary : Color.red)
+                            .lineLimit(2)
+                    }
+                    Spacer()
+                }
             }
             Section("Slack") {
                 SecureField("App-level token", text: $c.slackAppToken, prompt: Text("xapp-…"))
@@ -35,6 +55,27 @@ private struct ConnectionsTab: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private func twilioReady(_ c: Credentials) -> Bool {
+        !c.twilioAccountSID.isEmpty
+            && !c.twilioAuthToken.isEmpty
+            && !c.twilioFromNumber.isEmpty
+            && !c.twilioToPhone.isEmpty
+    }
+
+    private func sendTestSMS() async {
+        twilioSending = true
+        twilioStatus = ""
+        defer { twilioSending = false }
+        do {
+            let sid = try await services.twilio.sendSMS(body: "Test from Relay")
+            twilioStatusOK = true
+            twilioStatus = "sent: \(sid)"
+        } catch {
+            twilioStatusOK = false
+            twilioStatus = String(describing: error)
+        }
     }
 }
 

@@ -27,6 +27,7 @@ struct RelayApp: App {
             SettingsView()
                 .environment(appState)
                 .environment(credentials)
+                .environment(services)
         }
     }
 }
