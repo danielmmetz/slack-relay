@@ -28,6 +28,8 @@ final class SlackClient {
     private var loopTask: Task<Void, Never>?
     private var ws: URLSessionWebSocketTask?
     private var reconnectAttempt: Int = 0
+    private var recentMessageKeys: [String] = []
+    private static let dedupCapacity = 200
 
     init(appState: AppState, credentials: Credentials) {
         self.appState = appState
@@ -147,10 +149,19 @@ final class SlackClient {
                 try await ack(envelopeID: id)
             }
             if let ev = env.payload?.event, ev.type == "message" {
-                logger.info(
-                    "msg ch=\(ev.channel ?? "?", privacy: .public) ts=\(ev.ts ?? "?", privacy: .public) thread=\(ev.threadTS ?? "-", privacy: .public) sub=\(ev.subtype ?? "-", privacy: .public) text=\(ev.text ?? "", privacy: .public)"
-                )
-                onMessage?(ev)
+                let key = "\(ev.channel ?? "?")/\(ev.ts ?? "?")"
+                if recentMessageKeys.contains(key) {
+                    logger.debug("dedup \(key, privacy: .public)")
+                } else {
+                    recentMessageKeys.append(key)
+                    if recentMessageKeys.count > Self.dedupCapacity {
+                        recentMessageKeys.removeFirst(recentMessageKeys.count - Self.dedupCapacity)
+                    }
+                    logger.info(
+                        "msg ch=\(ev.channel ?? "?", privacy: .public) ts=\(ev.ts ?? "?", privacy: .public) thread=\(ev.threadTS ?? "-", privacy: .public) sub=\(ev.subtype ?? "-", privacy: .public) text=\(ev.text ?? "", privacy: .public)"
+                    )
+                    onMessage?(ev)
+                }
             }
         case "disconnect":
             throw SlackError.disconnected(env.reason ?? "")
