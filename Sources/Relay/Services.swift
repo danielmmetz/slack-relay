@@ -5,6 +5,7 @@ import Foundation
 final class Services {
     let slack: SlackClient
     let twilio: TwilioClient
+    let twilioPoller: TwilioPoller
     let names: SlackNameCache
     let router: Router
 
@@ -22,12 +23,18 @@ final class Services {
         slackClient.onMessage = { [routerInstance] event in
             Task { await routerInstance.handle(event) }
         }
+        let poller = TwilioPoller(appState: appState, appData: appData, credentials: credentials)
+        poller.onInbound = { [routerInstance] sms in
+            Task { await routerInstance.handleInbound(sms) }
+        }
 
         names = nameCache
         twilio = twilioClient
         router = routerInstance
         slack = slackClient
+        twilioPoller = poller
 
         slack.start()
+        twilioPoller.start()
     }
 }

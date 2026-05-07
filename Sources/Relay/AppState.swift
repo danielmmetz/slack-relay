@@ -18,7 +18,14 @@ final class AppState {
     var statusLine: String {
         if paused { return "Paused" }
         if !slackConnected { return "Slack disconnected" }
-        if !twilioLastPollOk { return "Twilio polling failed" }
+        if !twilioLastPollOk {
+            if let at = twilioLastPollAt {
+                let f = DateFormatter()
+                f.dateFormat = "HH:mm"
+                return "Twilio polling failed at \(f.string(from: at))"
+            }
+            return "Twilio polling failed"
+        }
         return "Connected"
     }
 }

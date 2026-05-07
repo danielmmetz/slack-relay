@@ -8,6 +8,8 @@ final class AppData {
     var watchedChannelsText: String { didSet { save() } }
     var watchedUsersText: String { didSet { save() } }
     var skipOwnMessages: Bool { didSet { save() } }
+    var routingTokens: RoutingTokens { didSet { save() } }
+    var lastSeenTwilioDate: Date? { didSet { save() } }
 
     var watchedChannelIDs: Set<String> { Self.parseIDs(watchedChannelsText) }
     var watchedUserIDs: Set<String> { Self.parseIDs(watchedUsersText) }
@@ -21,12 +23,16 @@ final class AppData {
         watchedChannelsText = snapshot.watchedChannelsText
         watchedUsersText = snapshot.watchedUsersText
         skipOwnMessages = snapshot.skipOwnMessages
+        routingTokens = snapshot.routingTokens
+        lastSeenTwilioDate = snapshot.lastSeenTwilioDate
     }
 
     private struct Snapshot: Codable {
         var watchedChannelsText: String = ""
         var watchedUsersText: String = ""
         var skipOwnMessages: Bool = true
+        var routingTokens: RoutingTokens = RoutingTokens()
+        var lastSeenTwilioDate: Date? = nil
 
         init() {}
 
@@ -35,10 +41,12 @@ final class AppData {
             watchedChannelsText = try c.decodeIfPresent(String.self, forKey: .watchedChannelsText) ?? ""
             watchedUsersText = try c.decodeIfPresent(String.self, forKey: .watchedUsersText) ?? ""
             skipOwnMessages = try c.decodeIfPresent(Bool.self, forKey: .skipOwnMessages) ?? true
+            routingTokens = try c.decodeIfPresent(RoutingTokens.self, forKey: .routingTokens) ?? RoutingTokens()
+            lastSeenTwilioDate = try c.decodeIfPresent(Date.self, forKey: .lastSeenTwilioDate)
         }
 
         private enum CodingKeys: String, CodingKey {
-            case watchedChannelsText, watchedUsersText, skipOwnMessages
+            case watchedChannelsText, watchedUsersText, skipOwnMessages, routingTokens, lastSeenTwilioDate
         }
     }
 
@@ -55,6 +63,8 @@ final class AppData {
         snapshot.watchedChannelsText = watchedChannelsText
         snapshot.watchedUsersText = watchedUsersText
         snapshot.skipOwnMessages = skipOwnMessages
+        snapshot.routingTokens = routingTokens
+        snapshot.lastSeenTwilioDate = lastSeenTwilioDate
         do {
             let dir = url.deletingLastPathComponent()
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

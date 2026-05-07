@@ -94,6 +94,21 @@ enum SlackAPI {
         return w.channel
     }
 
+    struct PostMessageResponse: Decodable {
+        let channel: String?
+        let ts: String?
+    }
+
+    static func chatPostMessage(token: String, channel: String, text: String, threadTS: String?) async throws -> PostMessageResponse {
+        try await call(method: "chat.postMessage", token: token, payload: PostMessageResponse.self) { items in
+            items.append(URLQueryItem(name: "channel", value: channel))
+            items.append(URLQueryItem(name: "text", value: text))
+            if let threadTS {
+                items.append(URLQueryItem(name: "thread_ts", value: threadTS))
+            }
+        }
+    }
+
     private static func call<T: Decodable>(
         method: String,
         token: String,

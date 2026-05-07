@@ -27,11 +27,84 @@ final class Router {
     func handle(_ event: SlackEvent) async {
         if appState.paused { return }
         guard shouldForward(event) else { return }
-        let body = await format(event)
+        guard let channelID = event.channel, let sourceTS = event.ts else { return }
+
+        let isDM = event.channelType == "im"
+        let isThreadReply = event.threadTS != nil && event.threadTS != event.ts
+        let token = appData.routingTokens.allocate(
+            channelID: channelID,
+            sourceTS: sourceTS,
+            threadAnchor: isThreadReply ? event.threadTS : nil,
+            isDM: isDM
+        )
+
+        let formatted = await format(event)
+        let body = "\(formatted) [\(token)]"
+
         do {
             try await twilio.sendSMS(body: body)
         } catch {
             logger.error("forwarding: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    func handleInbound(_ sms: InboundSMS) async {
+        if appState.paused { return }
+        let parsed = ReplyParser.parse(sms.body)
+
+        var entry: TokenEntry?
+        var text: String
+
+        if let candidate = parsed.token {
+            if let found = appData.routingTokens.entry(for: candidate) {
+                entry = found
+                text = parsed.textWithoutToken
+            } else if parsed.tokenIsExplicit {
+                _ = try? await twilio.sendSMS(body: "unknown msg id \(candidate)")
+                return
+            } else {
+                entry = appData.routingTokens.last
+                text = parsed.fullBody
+            }
+        } else {
+            entry = appData.routingTokens.last
+            text = parsed.textWithoutToken
+        }
+
+        guard let target = entry else {
+            _ = try? await twilio.sendSMS(body: "no recent message to reply to")
+            return
+        }
+        if text.isEmpty { return }
+
+        let userToken = credentials.slackUserToken
+        guard !userToken.isEmpty else {
+            _ = try? await twilio.sendSMS(body: "Slack user token not configured")
+            return
+        }
+
+        let threadTS: String?
+        if target.isDM {
+            threadTS = nil
+        } else if let anchor = target.threadAnchor {
+            threadTS = anchor
+        } else if parsed.threadFlag {
+            threadTS = target.sourceTS
+        } else {
+            threadTS = nil
+        }
+
+        do {
+            _ = try await SlackAPI.chatPostMessage(
+                token: userToken,
+                channel: target.channelID,
+                text: text,
+                threadTS: threadTS
+            )
+            logger.info("posted to \(target.channelID, privacy: .public) thread=\(threadTS ?? "-", privacy: .public)")
+        } catch {
+            logger.error("posting: \(String(describing: error), privacy: .public)")
+            _ = try? await twilio.sendSMS(body: "post failed: \(String(describing: error))")
         }
     }
 
