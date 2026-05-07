@@ -7,10 +7,12 @@ struct SettingsView: View {
                 .tabItem { Label("Connections", systemImage: "link") }
             ChannelsTab()
                 .tabItem { Label("Channels", systemImage: "number") }
+            DMsTab()
+                .tabItem { Label("DMs", systemImage: "bubble.left.and.bubble.right") }
             BehaviorTab()
                 .tabItem { Label("Behavior", systemImage: "slider.horizontal.3") }
         }
-        .frame(width: 560, height: 440)
+        .frame(width: 560, height: 480)
     }
 }
 
@@ -93,17 +95,17 @@ private struct ChannelsTab: View {
                 Button {
                     Task { await services.directory.refreshChannels() }
                 } label: {
-                    if services.directory.loading {
+                    if services.directory.loadingChannels {
                         ProgressView().controlSize(.small)
                     } else {
                         Image(systemName: "arrow.clockwise")
                     }
                 }
-                .disabled(services.directory.loading)
+                .disabled(services.directory.loadingChannels)
             }
             .padding()
 
-            if let err = services.directory.lastError {
+            if let err = services.directory.channelsError {
                 Text(err)
                     .font(.caption)
                     .foregroundStyle(.red)
@@ -132,23 +134,6 @@ private struct ChannelsTab: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Section {
-                    @Bindable var d = appData
-                    TextField(
-                        "User IDs (one per line, e.g. U0123456)",
-                        text: $d.watchedUsersText,
-                        axis: .vertical
-                    )
-                    .lineLimit(3...8)
-                    .monospaced()
-                    .textFieldStyle(.roundedBorder)
-                } header: {
-                    Text("DMs from users")
-                } footer: {
-                    Text("Get user IDs from a Slack profile → \"…\" → \"Copy member ID\". A real picker is coming.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
             }
         }
         .task {
@@ -165,7 +150,7 @@ private struct ChannelsTab: View {
     }
 
     private var emptyMessage: String {
-        if services.directory.loading { return "Loading channels…" }
+        if services.directory.loadingChannels { return "Loading channels…" }
         return "No channels yet. Click refresh, or invite the bot into a channel and try again."
     }
 
@@ -196,6 +181,109 @@ private struct ChannelRow: View {
         if channel.isMPIM == true { return "person.2" }
         if channel.isPrivate == true { return "lock" }
         return "number"
+    }
+}
+
+private struct DMsTab: View {
+    @Environment(AppData.self) private var appData
+    @Environment(Services.self) private var services
+
+    @State private var search: String = ""
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                TextField("Search users", text: $search)
+                    .textFieldStyle(.roundedBorder)
+                Button {
+                    Task { await services.directory.refreshUsers() }
+                } label: {
+                    if services.directory.loadingUsers {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                }
+                .disabled(services.directory.loadingUsers)
+            }
+            .padding()
+
+            if let err = services.directory.usersError {
+                Text(err)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
+            }
+
+            List {
+                Section {
+                    if services.directory.users.isEmpty {
+                        Text(emptyMessage)
+                            .foregroundStyle(.secondary)
+                            .font(.callout)
+                    } else {
+                        ForEach(filteredUsers) { user in
+                            Toggle(isOn: bindingForUser(user.id)) {
+                                UserRow(user: user)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Forward DMs from")
+                } footer: {
+                    Text("DMs to you from checked users get SMS-forwarded. Bot must have im:history scope and the user must DM you (not the other way around) for events to flow.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .task {
+            if services.directory.users.isEmpty {
+                await services.directory.refreshUsers()
+            }
+        }
+    }
+
+    private var filteredUsers: [SlackAPI.UserInfo] {
+        let q = search.lowercased()
+        if q.isEmpty { return services.directory.users }
+        return services.directory.users.filter {
+            $0.bestName.lowercased().contains(q) || $0.name.lowercased().contains(q)
+        }
+    }
+
+    private var emptyMessage: String {
+        if services.directory.loadingUsers { return "Loading users…" }
+        return "No users yet. Click refresh."
+    }
+
+    private func bindingForUser(_ id: String) -> Binding<Bool> {
+        Binding(
+            get: { appData.watchedUserIDs.contains(id) },
+            set: { isOn in
+                if isOn { appData.watchedUserIDs.insert(id) }
+                else { appData.watchedUserIDs.remove(id) }
+            }
+        )
+    }
+}
+
+private struct UserRow: View {
+    let user: SlackAPI.UserInfo
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "person.crop.circle")
+                .foregroundStyle(.secondary)
+                .frame(width: 16)
+            Text(user.bestName)
+            if user.bestName != user.name {
+                Text("@\(user.name)")
+                    .foregroundStyle(.secondary)
+                    .font(.caption)
+            }
+        }
     }
 }
 

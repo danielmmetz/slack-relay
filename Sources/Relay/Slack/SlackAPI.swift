@@ -35,16 +35,27 @@ enum SlackAPI {
         }
     }
 
-    struct UserInfo: Decodable {
+    struct UserInfo: Decodable, Identifiable, Equatable {
         let id: String
         let realName: String?
         let displayName: String?
         let name: String
+        let isBot: Bool
+        let isAppUser: Bool
+        let deleted: Bool
+
+        var bestName: String {
+            if let dn = displayName, !dn.isEmpty { return dn }
+            if let rn = realName, !rn.isEmpty { return rn }
+            return name
+        }
 
         private enum CodingKeys: String, CodingKey {
-            case id, name
+            case id, name, deleted
             case realName = "real_name"
             case profileWrapper = "profile"
+            case isBot = "is_bot"
+            case isAppUser = "is_app_user"
         }
 
         private struct Profile: Decodable {
@@ -59,7 +70,15 @@ enum SlackAPI {
             realName = try c.decodeIfPresent(String.self, forKey: .realName)
             let profile = try c.decodeIfPresent(Profile.self, forKey: .profileWrapper)
             displayName = profile?.displayName
+            isBot = try c.decodeIfPresent(Bool.self, forKey: .isBot) ?? false
+            isAppUser = try c.decodeIfPresent(Bool.self, forKey: .isAppUser) ?? false
+            deleted = try c.decodeIfPresent(Bool.self, forKey: .deleted) ?? false
         }
+    }
+
+    struct UsersListResponse {
+        let members: [UserInfo]
+        let nextCursor: String
     }
 
     struct ChannelInfo: Decodable, Identifiable, Equatable {
@@ -103,6 +122,28 @@ enum SlackAPI {
             items.append(URLQueryItem(name: "channel", value: id))
         }
         return w.channel
+    }
+
+    static func usersList(token: String, cursor: String? = nil, limit: Int = 200) async throws -> UsersListResponse {
+        struct Wrapper: Decodable {
+            let members: [UserInfo]
+            let responseMetadata: Meta?
+            struct Meta: Decodable {
+                let nextCursor: String?
+                private enum CodingKeys: String, CodingKey { case nextCursor = "next_cursor" }
+            }
+            private enum CodingKeys: String, CodingKey {
+                case members
+                case responseMetadata = "response_metadata"
+            }
+        }
+        let w = try await call(method: "users.list", token: token, payload: Wrapper.self) { items in
+            items.append(URLQueryItem(name: "limit", value: String(limit)))
+            if let cursor, !cursor.isEmpty {
+                items.append(URLQueryItem(name: "cursor", value: cursor))
+            }
+        }
+        return UsersListResponse(members: w.members, nextCursor: w.responseMetadata?.nextCursor ?? "")
     }
 
     static func conversationsList(token: String, cursor: String? = nil, limit: Int = 200) async throws -> ConversationsListResponse {

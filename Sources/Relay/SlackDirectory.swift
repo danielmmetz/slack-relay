@@ -6,8 +6,12 @@ import OSLog
 @Observable
 final class SlackDirectory {
     private(set) var channels: [SlackAPI.ChannelInfo] = []
-    private(set) var loading: Bool = false
-    private(set) var lastError: String? = nil
+    private(set) var loadingChannels: Bool = false
+    private(set) var channelsError: String? = nil
+
+    private(set) var users: [SlackAPI.UserInfo] = []
+    private(set) var loadingUsers: Bool = false
+    private(set) var usersError: String? = nil
 
     private let credentials: Credentials
     private let logger = Logger(subsystem: "com.danielmmetz.relay", category: "directory")
@@ -19,12 +23,12 @@ final class SlackDirectory {
     func refreshChannels() async {
         let token = credentials.slackBotToken
         guard !token.isEmpty else {
-            lastError = "bot token not configured"
+            channelsError = "bot token not configured"
             return
         }
-        loading = true
-        lastError = nil
-        defer { loading = false }
+        loadingChannels = true
+        channelsError = nil
+        defer { loadingChannels = false }
         do {
             var collected: [SlackAPI.ChannelInfo] = []
             var cursor: String? = nil
@@ -36,8 +40,37 @@ final class SlackDirectory {
             } while cursor?.isEmpty == false
             channels = collected.sorted { ($0.name ?? "") < ($1.name ?? "") }
         } catch {
-            lastError = String(describing: error)
-            logger.error("refresh: \(String(describing: error), privacy: .public)")
+            channelsError = String(describing: error)
+            logger.error("channels refresh: \(String(describing: error), privacy: .public)")
         }
+    }
+
+    func refreshUsers() async {
+        let token = credentials.slackBotToken
+        guard !token.isEmpty else {
+            usersError = "bot token not configured"
+            return
+        }
+        loadingUsers = true
+        usersError = nil
+        defer { loadingUsers = false }
+        do {
+            var collected: [SlackAPI.UserInfo] = []
+            var cursor: String? = nil
+            repeat {
+                let page = try await SlackAPI.usersList(token: token, cursor: cursor)
+                collected.append(contentsOf: page.members.filter { isVisible($0) })
+                cursor = page.nextCursor
+                if collected.count >= 5000 { break }
+            } while cursor?.isEmpty == false
+            users = collected.sorted { $0.bestName.localizedCaseInsensitiveCompare($1.bestName) == .orderedAscending }
+        } catch {
+            usersError = String(describing: error)
+            logger.error("users refresh: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    private func isVisible(_ user: SlackAPI.UserInfo) -> Bool {
+        !user.isBot && !user.isAppUser && !user.deleted && user.id != "USLACKBOT"
     }
 }
