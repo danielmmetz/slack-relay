@@ -15,13 +15,37 @@ struct SettingsView: View {
 }
 
 private struct ConnectionsTab: View {
+    @Environment(Credentials.self) private var credentials
+
     var body: some View {
+        @Bindable var c = credentials
         Form {
             Section("Twilio") {
-                Text("Not configured").foregroundStyle(.secondary)
+                LabeledContent("Account SID") {
+                    TextField("AC…", text: $c.twilioAccountSID)
+                }
+                LabeledContent("Auth Token") {
+                    SecureField("auth token", text: $c.twilioAuthToken)
+                }
+                LabeledContent("From number") {
+                    TextField("+14155551234", text: $c.twilioFromNumber)
+                }
+                LabeledContent("Your phone") {
+                    TextField("+14155555678", text: $c.twilioToPhone)
+                }
+                Button("Send test SMS") {}.disabled(true)
             }
             Section("Slack") {
-                Text("Not configured").foregroundStyle(.secondary)
+                LabeledContent("App-level token") {
+                    SecureField("xapp-…", text: $c.slackAppToken)
+                }
+                LabeledContent("Bot token") {
+                    SecureField("xoxb-…", text: $c.slackBotToken)
+                }
+                LabeledContent("User token") {
+                    SecureField("xoxp-…", text: $c.slackUserToken)
+                }
+                Button("Test Slack connection") {}.disabled(true)
             }
         }
         .formStyle(.grouped)
