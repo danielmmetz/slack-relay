@@ -7,6 +7,7 @@ import OSLog
 final class AppData {
     var watchedChannelsText: String { didSet { save() } }
     var watchedUsersText: String { didSet { save() } }
+    var forwardOwnMessages: Bool { didSet { save() } }
 
     var watchedChannelIDs: Set<String> { Self.parseIDs(watchedChannelsText) }
     var watchedUserIDs: Set<String> { Self.parseIDs(watchedUsersText) }
@@ -19,11 +20,26 @@ final class AppData {
         let snapshot = Self.load(url: url)
         watchedChannelsText = snapshot.watchedChannelsText
         watchedUsersText = snapshot.watchedUsersText
+        forwardOwnMessages = snapshot.forwardOwnMessages
     }
 
     private struct Snapshot: Codable {
         var watchedChannelsText: String = ""
         var watchedUsersText: String = ""
+        var forwardOwnMessages: Bool = true
+
+        init() {}
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            watchedChannelsText = try c.decodeIfPresent(String.self, forKey: .watchedChannelsText) ?? ""
+            watchedUsersText = try c.decodeIfPresent(String.self, forKey: .watchedUsersText) ?? ""
+            forwardOwnMessages = try c.decodeIfPresent(Bool.self, forKey: .forwardOwnMessages) ?? true
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case watchedChannelsText, watchedUsersText, forwardOwnMessages
+        }
     }
 
     private static func parseIDs(_ text: String) -> Set<String> {
@@ -35,10 +51,10 @@ final class AppData {
     }
 
     private func save() {
-        let snapshot = Snapshot(
-            watchedChannelsText: watchedChannelsText,
-            watchedUsersText: watchedUsersText
-        )
+        var snapshot = Snapshot()
+        snapshot.watchedChannelsText = watchedChannelsText
+        snapshot.watchedUsersText = watchedUsersText
+        snapshot.forwardOwnMessages = forwardOwnMessages
         do {
             let dir = url.deletingLastPathComponent()
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

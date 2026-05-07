@@ -41,6 +41,12 @@ final class Router {
         if let subtype = event.subtype, !Self.allowedSubtypes.contains(subtype) {
             return false
         }
+        if !appData.forwardOwnMessages,
+           let user = event.user,
+           let selfID = appState.selfUserID,
+           user == selfID {
+            return false
+        }
         let isThreadReply = event.threadTS != nil && event.threadTS != event.ts
 
         if event.channelType == "im" {

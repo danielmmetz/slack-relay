@@ -125,11 +125,27 @@ private struct ChannelsTab: View {
 
 private struct BehaviorTab: View {
     @Environment(AppState.self) private var appState
+    @Environment(AppData.self) private var appData
 
     var body: some View {
         @Bindable var appState = appState
+        @Bindable var appData = appData
         Form {
-            Toggle("Paused", isOn: $appState.paused)
+            Section {
+                Toggle("Paused", isOn: $appState.paused)
+            } footer: {
+                Text("When paused, Slack stays connected but no SMS is sent.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle("Forward my own messages", isOn: $appData.forwardOwnMessages)
+            } footer: {
+                Text("When off, messages you post in watched channels are skipped. Useful once you stop testing.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
     }
