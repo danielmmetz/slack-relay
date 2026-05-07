@@ -17,6 +17,8 @@ enum SlackAPIError: Error, CustomStringConvertible {
 private struct SlackStatus: Decodable {
     let ok: Bool
     let error: String?
+    let needed: String?
+    let provided: String?
 }
 
 enum SlackAPI {
@@ -212,7 +214,9 @@ enum SlackAPI {
             throw SlackAPIError.decode(String(describing: error))
         }
         guard status.ok else {
-            throw SlackAPIError.notOK(status.error ?? "unknown")
+            var message = status.error ?? "unknown"
+            if let needed = status.needed { message += " (needed: \(needed))" }
+            throw SlackAPIError.notOK(message)
         }
         do {
             return try JSONDecoder().decode(T.self, from: data)
