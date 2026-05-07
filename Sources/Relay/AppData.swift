@@ -5,13 +5,12 @@ import OSLog
 @MainActor
 @Observable
 final class AppData {
-    var watchedChannelsText: String { didSet { save() } }
+    var watchedChannelIDs: Set<String> { didSet { save() } }
     var watchedUsersText: String { didSet { save() } }
     var skipOwnMessages: Bool { didSet { save() } }
     var routingTokens: RoutingTokens { didSet { save() } }
     var lastSeenTwilioDate: Date? { didSet { save() } }
 
-    var watchedChannelIDs: Set<String> { Self.parseIDs(watchedChannelsText) }
     var watchedUserIDs: Set<String> { Self.parseIDs(watchedUsersText) }
 
     private let url: URL
@@ -20,7 +19,7 @@ final class AppData {
     init() {
         url = Self.stateFileURL()
         let snapshot = Self.load(url: url)
-        watchedChannelsText = snapshot.watchedChannelsText
+        watchedChannelIDs = snapshot.watchedChannelIDs
         watchedUsersText = snapshot.watchedUsersText
         skipOwnMessages = snapshot.skipOwnMessages
         routingTokens = snapshot.routingTokens
@@ -28,7 +27,7 @@ final class AppData {
     }
 
     private struct Snapshot: Codable {
-        var watchedChannelsText: String = ""
+        var watchedChannelIDs: Set<String> = []
         var watchedUsersText: String = ""
         var skipOwnMessages: Bool = true
         var routingTokens: RoutingTokens = RoutingTokens()
@@ -38,19 +37,34 @@ final class AppData {
 
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
-            watchedChannelsText = try c.decodeIfPresent(String.self, forKey: .watchedChannelsText) ?? ""
+            if let ids = try c.decodeIfPresent(Set<String>.self, forKey: .watchedChannelIDs) {
+                watchedChannelIDs = ids
+            } else if let text = try c.decodeIfPresent(String.self, forKey: .watchedChannelsText) {
+                watchedChannelIDs = AppData.parseIDs(text)
+            } else {
+                watchedChannelIDs = []
+            }
             watchedUsersText = try c.decodeIfPresent(String.self, forKey: .watchedUsersText) ?? ""
             skipOwnMessages = try c.decodeIfPresent(Bool.self, forKey: .skipOwnMessages) ?? true
             routingTokens = try c.decodeIfPresent(RoutingTokens.self, forKey: .routingTokens) ?? RoutingTokens()
             lastSeenTwilioDate = try c.decodeIfPresent(Date.self, forKey: .lastSeenTwilioDate)
         }
 
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(watchedChannelIDs, forKey: .watchedChannelIDs)
+            try c.encode(watchedUsersText, forKey: .watchedUsersText)
+            try c.encode(skipOwnMessages, forKey: .skipOwnMessages)
+            try c.encode(routingTokens, forKey: .routingTokens)
+            try c.encodeIfPresent(lastSeenTwilioDate, forKey: .lastSeenTwilioDate)
+        }
+
         private enum CodingKeys: String, CodingKey {
-            case watchedChannelsText, watchedUsersText, skipOwnMessages, routingTokens, lastSeenTwilioDate
+            case watchedChannelIDs, watchedChannelsText, watchedUsersText, skipOwnMessages, routingTokens, lastSeenTwilioDate
         }
     }
 
-    private static func parseIDs(_ text: String) -> Set<String> {
+    nonisolated fileprivate static func parseIDs(_ text: String) -> Set<String> {
         Set(
             text.split(whereSeparator: { $0.isNewline || $0 == "," })
                 .map { $0.trimmingCharacters(in: .whitespaces) }
@@ -60,7 +74,7 @@ final class AppData {
 
     private func save() {
         var snapshot = Snapshot()
-        snapshot.watchedChannelsText = watchedChannelsText
+        snapshot.watchedChannelIDs = watchedChannelIDs
         snapshot.watchedUsersText = watchedUsersText
         snapshot.skipOwnMessages = skipOwnMessages
         snapshot.routingTokens = routingTokens

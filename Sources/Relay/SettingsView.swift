@@ -81,45 +81,121 @@ private struct ConnectionsTab: View {
 
 private struct ChannelsTab: View {
     @Environment(AppData.self) private var appData
+    @Environment(Services.self) private var services
+
+    @State private var search: String = ""
 
     var body: some View {
-        @Bindable var d = appData
-        Form {
-            Section {
-                TextField(
-                    "Channel IDs (one per line, e.g. C0123456)",
-                    text: $d.watchedChannelsText,
-                    axis: .vertical
-                )
-                .lineLimit(4...10)
-                .monospaced()
-                .textFieldStyle(.roundedBorder)
-            } header: {
-                Text("Channels to forward")
-            } footer: {
-                Text("Root messages forward; thread replies forward only when they @mention you.")
+        VStack(spacing: 0) {
+            HStack {
+                TextField("Search channels", text: $search)
+                    .textFieldStyle(.roundedBorder)
+                Button {
+                    Task { await services.directory.refreshChannels() }
+                } label: {
+                    if services.directory.loading {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                }
+                .disabled(services.directory.loading)
+            }
+            .padding()
+
+            if let err = services.directory.lastError {
+                Text(err)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.red)
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
             }
 
-            Section {
-                TextField(
-                    "User IDs (one per line, e.g. U0123456)",
-                    text: $d.watchedUsersText,
-                    axis: .vertical
-                )
-                .lineLimit(3...8)
-                .monospaced()
-                .textFieldStyle(.roundedBorder)
-            } header: {
-                Text("DMs from users")
-            } footer: {
-                Text("Get user IDs from a Slack profile → \"…\" → \"Copy member ID\".")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            List {
+                Section {
+                    if services.directory.channels.isEmpty {
+                        Text(emptyMessage)
+                            .foregroundStyle(.secondary)
+                            .font(.callout)
+                    } else {
+                        ForEach(filteredChannels) { channel in
+                            Toggle(isOn: bindingForChannel(channel.id)) {
+                                ChannelRow(channel: channel)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Channels the bot can see")
+                } footer: {
+                    Text("Root messages in checked channels forward to SMS. Thread replies forward only when they @mention you.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section {
+                    @Bindable var d = appData
+                    TextField(
+                        "User IDs (one per line, e.g. U0123456)",
+                        text: $d.watchedUsersText,
+                        axis: .vertical
+                    )
+                    .lineLimit(3...8)
+                    .monospaced()
+                    .textFieldStyle(.roundedBorder)
+                } header: {
+                    Text("DMs from users")
+                } footer: {
+                    Text("Get user IDs from a Slack profile → \"…\" → \"Copy member ID\". A real picker is coming.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
-        .formStyle(.grouped)
+        .task {
+            if services.directory.channels.isEmpty {
+                await services.directory.refreshChannels()
+            }
+        }
+    }
+
+    private var filteredChannels: [SlackAPI.ChannelInfo] {
+        let q = search.lowercased()
+        if q.isEmpty { return services.directory.channels }
+        return services.directory.channels.filter { ($0.name ?? "").lowercased().contains(q) }
+    }
+
+    private var emptyMessage: String {
+        if services.directory.loading { return "Loading channels…" }
+        return "No channels yet. Click refresh, or invite the bot into a channel and try again."
+    }
+
+    private func bindingForChannel(_ id: String) -> Binding<Bool> {
+        Binding(
+            get: { appData.watchedChannelIDs.contains(id) },
+            set: { isOn in
+                if isOn { appData.watchedChannelIDs.insert(id) }
+                else { appData.watchedChannelIDs.remove(id) }
+            }
+        )
+    }
+}
+
+private struct ChannelRow: View {
+    let channel: SlackAPI.ChannelInfo
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .foregroundStyle(.secondary)
+                .frame(width: 16)
+            Text(channel.name ?? channel.id)
+        }
+    }
+
+    private var icon: String {
+        if channel.isMPIM == true { return "person.2" }
+        if channel.isPrivate == true { return "lock" }
+        return "number"
     }
 }
 

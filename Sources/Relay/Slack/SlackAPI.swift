@@ -62,16 +62,27 @@ enum SlackAPI {
         }
     }
 
-    struct ChannelInfo: Decodable {
+    struct ChannelInfo: Decodable, Identifiable, Equatable {
         let id: String
         let name: String?
         let isIM: Bool?
+        let isMPIM: Bool?
+        let isPrivate: Bool?
+        let isMember: Bool?
         let user: String?
 
         private enum CodingKeys: String, CodingKey {
             case id, name, user
             case isIM = "is_im"
+            case isMPIM = "is_mpim"
+            case isPrivate = "is_private"
+            case isMember = "is_member"
         }
+    }
+
+    struct ConversationsListResponse {
+        let channels: [ChannelInfo]
+        let nextCursor: String
     }
 
     static func authTest(token: String) async throws -> AuthTestResponse {
@@ -92,6 +103,30 @@ enum SlackAPI {
             items.append(URLQueryItem(name: "channel", value: id))
         }
         return w.channel
+    }
+
+    static func conversationsList(token: String, cursor: String? = nil, limit: Int = 200) async throws -> ConversationsListResponse {
+        struct Wrapper: Decodable {
+            let channels: [ChannelInfo]
+            let responseMetadata: Meta?
+            struct Meta: Decodable {
+                let nextCursor: String?
+                private enum CodingKeys: String, CodingKey { case nextCursor = "next_cursor" }
+            }
+            private enum CodingKeys: String, CodingKey {
+                case channels
+                case responseMetadata = "response_metadata"
+            }
+        }
+        let w = try await call(method: "conversations.list", token: token, payload: Wrapper.self) { items in
+            items.append(URLQueryItem(name: "types", value: "public_channel,private_channel,mpim"))
+            items.append(URLQueryItem(name: "exclude_archived", value: "true"))
+            items.append(URLQueryItem(name: "limit", value: String(limit)))
+            if let cursor, !cursor.isEmpty {
+                items.append(URLQueryItem(name: "cursor", value: cursor))
+            }
+        }
+        return ConversationsListResponse(channels: w.channels, nextCursor: w.responseMetadata?.nextCursor ?? "")
     }
 
     struct PostMessageResponse: Decodable {

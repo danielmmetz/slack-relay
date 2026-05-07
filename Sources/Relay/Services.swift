@@ -8,6 +8,7 @@ final class Services {
     let twilioPoller: TwilioPoller
     let names: SlackNameCache
     let router: Router
+    let directory: SlackDirectory
 
     init(appState: AppState, credentials: Credentials, appData: AppData) {
         let nameCache = SlackNameCache()
@@ -33,6 +34,7 @@ final class Services {
         router = routerInstance
         slack = slackClient
         twilioPoller = poller
+        directory = SlackDirectory(credentials: credentials)
 
         slack.start()
         twilioPoller.start()
