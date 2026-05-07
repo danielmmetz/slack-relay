@@ -5,54 +5,75 @@ import OSLog
 @MainActor
 @Observable
 final class Credentials {
-    var twilioAccountSID: String { didSet { persist(.twilioAccountSID, twilioAccountSID) } }
-    var twilioAuthToken: String { didSet { persist(.twilioAuthToken, twilioAuthToken) } }
-    var twilioFromNumber: String { didSet { persist(.twilioFromNumber, twilioFromNumber) } }
-    var twilioToPhone: String { didSet { persist(.twilioToPhone, twilioToPhone) } }
-    var slackAppToken: String { didSet { persist(.slackAppToken, slackAppToken) } }
-    var slackBotToken: String { didSet { persist(.slackBotToken, slackBotToken) } }
-    var slackUserToken: String { didSet { persist(.slackUserToken, slackUserToken) } }
+    var twilioAccountSID: String { didSet { persist() } }
+    var twilioAuthToken: String { didSet { persist() } }
+    var twilioFromNumber: String { didSet { persist() } }
+    var twilioToPhone: String { didSet { persist() } }
+    var slackAppToken: String { didSet { persist() } }
+    var slackBotToken: String { didSet { persist() } }
+    var slackUserToken: String { didSet { persist() } }
 
+    private static let account = "credentials.v1"
     private static let logger = Logger(subsystem: "com.danielmmetz.relay", category: "credentials")
 
     init() {
-        twilioAccountSID = Self.load(.twilioAccountSID)
-        twilioAuthToken = Self.load(.twilioAuthToken)
-        twilioFromNumber = Self.load(.twilioFromNumber)
-        twilioToPhone = Self.load(.twilioToPhone)
-        slackAppToken = Self.load(.slackAppToken)
-        slackBotToken = Self.load(.slackBotToken)
-        slackUserToken = Self.load(.slackUserToken)
+        let snap = Self.load()
+        twilioAccountSID = snap.twilioAccountSID
+        twilioAuthToken = snap.twilioAuthToken
+        twilioFromNumber = snap.twilioFromNumber
+        twilioToPhone = snap.twilioToPhone
+        slackAppToken = snap.slackAppToken
+        slackBotToken = snap.slackBotToken
+        slackUserToken = snap.slackUserToken
     }
 
-    enum Account: String {
-        case twilioAccountSID = "twilio.account_sid"
-        case twilioAuthToken = "twilio.auth_token"
-        case twilioFromNumber = "twilio.from_number"
-        case twilioToPhone = "twilio.to_phone"
-        case slackAppToken = "slack.app_token"
-        case slackBotToken = "slack.bot_token"
-        case slackUserToken = "slack.user_token"
-    }
+    private struct Snapshot: Codable {
+        var twilioAccountSID = ""
+        var twilioAuthToken = ""
+        var twilioFromNumber = ""
+        var twilioToPhone = ""
+        var slackAppToken = ""
+        var slackBotToken = ""
+        var slackUserToken = ""
 
-    private static func load(_ account: Account) -> String {
-        do {
-            return try Keychain.get(account: account.rawValue) ?? ""
-        } catch {
-            logger.error("loading \(account.rawValue, privacy: .public): \(error.localizedDescription, privacy: .public)")
-            return ""
+        var allEmpty: Bool {
+            twilioAccountSID.isEmpty && twilioAuthToken.isEmpty
+                && twilioFromNumber.isEmpty && twilioToPhone.isEmpty
+                && slackAppToken.isEmpty && slackBotToken.isEmpty
+                && slackUserToken.isEmpty
         }
     }
 
-    private func persist(_ account: Account, _ value: String) {
+    private static func load() -> Snapshot {
         do {
-            if value.isEmpty {
-                try Keychain.delete(account: account.rawValue)
-            } else {
-                try Keychain.set(account: account.rawValue, value: value)
-            }
+            guard let raw = try Keychain.get(account: account) else { return Snapshot() }
+            return try JSONDecoder().decode(Snapshot.self, from: Data(raw.utf8))
         } catch {
-            Self.logger.error("persisting \(account.rawValue, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            logger.error("loading: \(error.localizedDescription, privacy: .public)")
+            return Snapshot()
+        }
+    }
+
+    private func persist() {
+        let snap = Snapshot(
+            twilioAccountSID: twilioAccountSID,
+            twilioAuthToken: twilioAuthToken,
+            twilioFromNumber: twilioFromNumber,
+            twilioToPhone: twilioToPhone,
+            slackAppToken: slackAppToken,
+            slackBotToken: slackBotToken,
+            slackUserToken: slackUserToken
+        )
+        do {
+            if snap.allEmpty {
+                try Keychain.delete(account: Self.account)
+                return
+            }
+            let data = try JSONEncoder().encode(snap)
+            let raw = String(decoding: data, as: UTF8.self)
+            try Keychain.set(account: Self.account, value: raw)
+        } catch {
+            Self.logger.error("persisting: \(error.localizedDescription, privacy: .public)")
         }
     }
 }
