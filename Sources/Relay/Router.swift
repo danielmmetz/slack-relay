@@ -41,7 +41,7 @@ final class Router {
         if let subtype = event.subtype, !Self.allowedSubtypes.contains(subtype) {
             return false
         }
-        if !appData.forwardOwnMessages,
+        if appData.skipOwnMessages,
            let user = event.user,
            let selfID = appState.selfUserID,
            user == selfID {

@@ -140,9 +140,9 @@ private struct BehaviorTab: View {
             }
 
             Section {
-                Toggle("Forward my own messages", isOn: $appData.forwardOwnMessages)
+                Toggle("Skip my own messages", isOn: $appData.skipOwnMessages)
             } footer: {
-                Text("When off, messages you post in watched channels are skipped. Useful once you stop testing.")
+                Text("When on, messages you post in watched channels aren't forwarded. Turn off for testing.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
