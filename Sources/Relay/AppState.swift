@@ -8,6 +8,7 @@ final class AppState {
     var slackConnected: Bool = false
     var twilioLastPollAt: Date? = nil
     var twilioLastPollOk: Bool = true
+    var selfUserID: String? = nil
 
     var menuBarSymbolName: String {
         if paused { return "pause.circle" }

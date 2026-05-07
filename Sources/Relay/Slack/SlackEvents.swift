@@ -27,10 +27,15 @@ struct SlackEvent: Decodable {
     let text: String?
     let subtype: String?
     let channelType: String?
+    let files: [SlackFile]?
 
     private enum CodingKeys: String, CodingKey {
-        case type, channel, user, ts, text, subtype
+        case type, channel, user, ts, text, subtype, files
         case threadTS = "thread_ts"
         case channelType = "channel_type"
     }
+}
+
+struct SlackFile: Decodable {
+    let name: String?
 }

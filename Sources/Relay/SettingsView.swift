@@ -80,12 +80,46 @@ private struct ConnectionsTab: View {
 }
 
 private struct ChannelsTab: View {
+    @Environment(AppData.self) private var appData
+
     var body: some View {
-        ContentUnavailableView(
-            "Connect Slack to load channels",
-            systemImage: "number",
-            description: Text("Configure Slack tokens in the Connections tab.")
-        )
+        @Bindable var d = appData
+        Form {
+            Section {
+                TextField(
+                    "Channel IDs (one per line, e.g. C0123456)",
+                    text: $d.watchedChannelsText,
+                    axis: .vertical
+                )
+                .lineLimit(4...10)
+                .monospaced()
+                .textFieldStyle(.roundedBorder)
+            } header: {
+                Text("Channels to forward")
+            } footer: {
+                Text("Root messages forward; thread replies forward only when they @mention you.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                TextField(
+                    "User IDs (one per line, e.g. U0123456)",
+                    text: $d.watchedUsersText,
+                    axis: .vertical
+                )
+                .lineLimit(3...8)
+                .monospaced()
+                .textFieldStyle(.roundedBorder)
+            } header: {
+                Text("DMs from users")
+            } footer: {
+                Text("Get user IDs from a Slack profile → \"…\" → \"Copy member ID\".")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
     }
 }
 

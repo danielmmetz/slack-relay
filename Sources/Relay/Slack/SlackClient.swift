@@ -17,6 +17,8 @@ enum SlackError: Error, CustomStringConvertible {
 
 @MainActor
 final class SlackClient {
+    var onMessage: ((SlackEvent) -> Void)?
+
     private let appState: AppState
     private let credentials: Credentials
 
@@ -59,6 +61,8 @@ final class SlackClient {
                 continue
             }
 
+            await resolveSelfUserIDIfNeeded()
+
             do {
                 let url = try await openConnection(appToken: appToken)
                 try await pump(url: url)
@@ -77,6 +81,19 @@ final class SlackClient {
             if (try? await Task.sleep(for: .seconds(delay))) == nil { break }
         }
         appState.slackConnected = false
+    }
+
+    private func resolveSelfUserIDIfNeeded() async {
+        guard appState.selfUserID == nil else { return }
+        let userToken = credentials.slackUserToken
+        guard !userToken.isEmpty else { return }
+        do {
+            let info = try await SlackAPI.authTest(token: userToken)
+            appState.selfUserID = info.userID
+            logger.info("self user_id=\(info.userID, privacy: .public)")
+        } catch {
+            logger.error("auth.test: \(String(describing: error), privacy: .public)")
+        }
     }
 
     private func openConnection(appToken: String) async throws -> URL {
@@ -132,6 +149,7 @@ final class SlackClient {
                 logger.info(
                     "msg ch=\(ev.channel ?? "?", privacy: .public) ts=\(ev.ts ?? "?", privacy: .public) thread=\(ev.threadTS ?? "-", privacy: .public) sub=\(ev.subtype ?? "-", privacy: .public) text=\(ev.text ?? "", privacy: .public)"
                 )
+                onMessage?(ev)
             }
         case "disconnect":
             throw SlackError.disconnected(env.reason ?? "")
