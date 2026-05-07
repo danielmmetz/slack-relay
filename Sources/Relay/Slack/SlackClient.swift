@@ -121,6 +121,7 @@ final class SlackClient {
         let task = session.webSocketTask(with: url)
         ws = task
         task.resume()
+        defer { task.cancel(with: .goingAway, reason: nil) }
         while !Task.isCancelled {
             let frame = try await task.receive()
             try await handle(frame: frame)
@@ -162,6 +163,7 @@ final class SlackClient {
         guard let task = ws else { return }
         let payload = ["envelope_id": envelopeID]
         let data = try JSONSerialization.data(withJSONObject: payload)
-        try await task.send(.data(data))
+        let json = String(decoding: data, as: UTF8.self)
+        try await task.send(.string(json))
     }
 }
